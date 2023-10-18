@@ -1,23 +1,23 @@
 Installation
 ============
 
-**my-package** supports Python >= 3.8.
+**realtune** supports Python >= 3.8.
 
 ## Installing with `pip`
 
-**my-package** is available [on PyPI](https://pypi.org/project/my-package/). Just run
+**realtune** is available [on PyPI](https://pypi.org/project/realtune/). Just run
 
 ```bash
-pip install my-package
+pip install realtune
 ```
 
 ## Installing from source
 
-To install **my-package** from source, first clone [the repository](https://github.com/allenai/python-package-template):
+To install **realtune** from source, first clone [the repository](https://github.com/richardkoehler/RealTune):
 
 ```bash
-git clone https://github.com/allenai/python-package-template.git
-cd python-package-template
+git clone https://github.com/richardkoehler/RealTune.git
+cd RealTune
 ```
 
 Then run
