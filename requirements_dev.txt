@@ -1,2 +1,6 @@
 black
+fooof
+psutil
+pybv
+seaborn
 ../py_neuromodulation
