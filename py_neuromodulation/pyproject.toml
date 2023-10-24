@@ -1,0 +1,141 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[project]
+authors = [{name = "Richard Köhler"}, {name = "Timon Merk"}]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+description = "Real-time analysis of intracranial neurophysiology recordings."
+dynamic = ["version"]
+keywords = [
+  "real-time",
+  "eeg",
+  "ieeg",
+  "dbs",
+  "ecog",
+  "electrocorticography",
+  "deep-brain-stimulation",
+  "machine-learning",
+]
+license = {file = "LICENSE"}
+maintainers = [{name = "Richard Köhler"}]
+name = "py_neuromodulation"
+readme = {file = "README.rst", content-type = "text/x-rst"}
+requires-python = ">=3.10"
+
+dependencies = [
+  "filterpy",
+  "mne",
+  "matplotlib >= 3.3.4",
+  "mne-bids >= 0.8",
+  "numpy >= 1.21.2",
+  "pandas >= 1.2.2",
+  "pip",
+  "pybids",
+  "scikit-learn >= 0.24.2",
+  "scipy >= 1.7.1",
+]
+
+[project.optional-dependencies]
+dev = ["black", "pytest", "pytest-cov"]
+
+[project.urls]
+Documentation = "https://github.com/richardkoehler/pte-neuromodulation#readme"
+Issues = "https://github.com/richardkoehler/pte-neuromodulation/issues"
+Source = "https://github.com/richardkoehler/pte-neuromodulation"
+
+[tool.hatch.version]
+path = "src/py_neuromodulation/__init__.py"
+
+[tool.hatch.build]
+only-include = ["src/py_neuromodulation"]
+sources = ["src"]
+
+[tool.black]
+exclude = '''
+/(
+  __pycache__
+)/
+'''
+line-length = 80
+target-version = ['py310']
+
+[tool.ruff]
+ignore = [
+  # Allow non-abstract empty methods in abstract base classes
+  "B027", # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003", # Ignore checks for possible passwords
+  "S105",
+  "S106",
+  "S107", # Ignore complexity
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+]
+line-length = 80
+select = [
+  "A",
+  "ARG",
+  "B",
+  "C",
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "FBT",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
+]
+target-version = "py310"
+unfixable = [
+  # Don't touch unused imports
+  "F401",
+]
+
+[tool.ruff.isort]
+known-first-party = ["py_neuromodulation"]
+
+[tool.ruff.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source_pkgs = ["py_neuromodulation", "tests"]
+
+[tool.coverage.paths]
+neuromodulation = ["src/py_neuromodulation"]
+tests = ["tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]

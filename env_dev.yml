@@ -1,0 +1,10 @@
+name: realtune
+channels:
+  - conda-forge
+dependencies:
+  - pip
+  - python=3.11.6
+  - mne>1.0
+  - mne-bids
+  - pip:
+    - -r requirements_dev.txt
