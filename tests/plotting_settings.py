@@ -1,15 +1,15 @@
 """Initialize settings for plotting."""
 import os
 import re
+from enum import Enum
 from typing import Union
 
 import cycler
-from enum import Enum
 import matplotlib as mpl
-from matplotlib import figure
 import numpy as np
-from matplotlib import pyplot as plt
 import seaborn as sns
+from matplotlib import figure
+from matplotlib import pyplot as plt
 
 PALETTE_WJN_2022 = np.array(
     (

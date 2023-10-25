@@ -1,13 +1,11 @@
 """Test decoding gait from GPi LFP data."""
 import pathlib
 
-# import time
-from matplotlib import pyplot as plt
-
 import mne
 import mne_bids
 import numpy as np
 import pandas as pd
+import plotting_settings
 
 # import py_neuromodulation as pn
 # from py_neuromodulation.generator import raw_data_generator
@@ -16,7 +14,8 @@ import scipy.io
 import sklearn.linear_model
 import sklearn.model_selection
 
-import plotting_settings
+# import time
+from matplotlib import pyplot as plt
 
 
 class Decoder:

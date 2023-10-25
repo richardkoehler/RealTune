@@ -1,6 +1,10 @@
 black
 fooof
+numba
 psutil
 pybv
+scikit-image
 seaborn
+statannotations
+statsmodels
 ../py_neuromodulation
