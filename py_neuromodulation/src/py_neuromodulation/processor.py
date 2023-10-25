@@ -8,14 +8,7 @@ from typing import Protocol, Type
 import numpy as np
 import pandas as pd
 
-from . import (
-    features,
-    filter,
-    io,
-    normalization,
-    rereference,
-    resample,
-)
+from . import features, filter, io, normalization, rereference, resample
 
 _PathLike = str | os.PathLike
 

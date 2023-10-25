@@ -1,15 +1,15 @@
 """Module that contains PNStream ABC."""
 import os
 import pathlib
+import pickle
 from abc import ABC, abstractmethod
 
-import pickle
 import pandas as pd
 from sklearn import base
 
+from . import io
 from .features import Features
 from .processor import DataProcessor
-from . import io
 
 _PathLike = str | os.PathLike
 

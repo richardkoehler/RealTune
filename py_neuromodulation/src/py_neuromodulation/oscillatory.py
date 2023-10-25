@@ -4,7 +4,7 @@ from typing import Iterable
 import numpy as np
 from scipy import fft
 
-from . import kalmanfilter, features_abc
+from . import features_abc, kalmanfilter
 
 
 class OscillatoryFeature(features_abc.Feature):
