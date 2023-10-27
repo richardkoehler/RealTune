@@ -16,6 +16,7 @@ from matplotlib import pyplot as plt
 from statannotations.stats.StatTest import StatTest
 
 F_BANDS = {
+    "θ": [3, 8],
     "α": [8, 12],
     "Low β": [13, 20],
     "High β": [21, 35],
@@ -280,16 +281,9 @@ def normalize_power(
         power, freqs = psd.get_data(picks="data", return_freqs=True)
         power = power.mean(axis=0)
         for ch, power_raw in zip(psd.ch_names, power, strict=True):
-            if mode == "raw":
-                power_norm = power_raw
-            elif mode == "fooof":
-                basename = f"{fname}_{ch}_{descr}"
-                power_norm = get_fooof(out_dir, freqs, ch, power_raw, basename)
-            elif mode == "std":
-                raise NotImplementedError("Not implemented yet.")
-                # power_norm = get_std_norm(power_raw)
-            else:
-                raise ValueError(f"Unknown mode: {mode}")
+            power_norm = normalize_single_ch(
+                power_raw, freqs, mode, ch, descr, fname, out_dir
+            )
             peak_fits.append([sub, descr, ch, *power_norm])  # type: ignore
     power_final = pd.DataFrame(
         peak_fits,
@@ -306,7 +300,7 @@ def normalize_power(
     return peak_fits
 
 
-def get_fooof(out_dir, freqs, ch, power_raw, basename) -> list[float]:
+def get_fooof(out_dir, freqs, ch, power_raw, basename) -> np.ndarray:
     fig, ax = plt.subplots(1, 1)
     fig.suptitle(ch)
     fig.show()
@@ -318,11 +312,11 @@ def get_fooof(out_dir, freqs, ch, power_raw, basename) -> list[float]:
         file_name=f"{basename}_model.pdf",
         file_path=str(out_dir),
     )
-    power_norm = list(*fooof_model._peak_fit)
+    power_norm = np.array(fooof_model._peak_fit)
     return power_norm
 
 
-def get_power_walking(
+def save_power_walking(
     in_dir: pathlib.Path,
     out_dir: pathlib.Path,
     mode: Literal["raw", "fooof", "std"] = "fooof",
@@ -376,7 +370,28 @@ def get_power_walking(
     power_all.to_csv(out_dir / f"{mode}_walking_standing.csv", index=False)
 
 
-def get_power_rest(
+def normalize_single_ch(
+    power_raw: np.ndarray,
+    freqs: np.ndarray,
+    mode,
+    ch: str,
+    descr: str,
+    fname: str,
+    out_dir: pathlib.Path,
+) -> np.ndarray:
+    if mode == "raw":
+        power_norm = np.log(power_raw)
+    elif mode == "fooof":
+        basename = f"{fname}_{ch}_{descr}"
+        power_norm = get_fooof(out_dir, freqs, ch, power_raw, basename)
+    elif mode == "std":
+        power_norm = get_std_norm(np.log(power_raw))
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+    return power_norm
+
+
+def save_power_rest(
     in_dir: pathlib.Path,
     out_dir: pathlib.Path,
     mode: Literal["raw", "fooof", "std"] = "fooof",
@@ -411,17 +426,11 @@ def get_power_rest(
         descr = "Rest"
         power, freqs = psd.get_data(picks="data", return_freqs=True)
         power = power.mean(axis=0)
+
         for ch, power_raw in zip(psd.ch_names, power, strict=True):
-            if mode == "raw":
-                power_norm = power_raw
-            elif mode == "fooof":
-                basename = f"{fname}_{ch}_{descr}"
-                power_norm = get_fooof(out_dir, freqs, ch, power_raw, basename)
-            elif mode == "std":
-                raise NotImplementedError("Not implemented yet.")
-                # power_norm = get_std_norm(power_raw)
-            else:
-                raise ValueError(f"Unknown mode: {mode}")
+            power_norm = normalize_single_ch(
+                power_raw, freqs, mode, ch, descr, fname, out_dir
+            )
             peak_fits.append([sub, descr, ch, *power_norm])  # type: ignore
         power_single = pd.DataFrame(
             peak_fits,
@@ -435,6 +444,12 @@ def get_power_rest(
         power_single.to_csv(
             out_dir / f"{mode}_rest_sub-{sub}.csv", index=False
         )
+
+
+def get_std_norm(power_raw: np.ndarray) -> np.ndarray:
+    """Normalize power with standard deviation."""
+    power_norm = (power_raw - power_raw.mean()) / power_raw.std()
+    return power_norm
 
 
 def psd_from_raw(
@@ -644,19 +659,19 @@ if __name__ == "__main__":
     # preprocess_rest(source_dir / "rest", raw_dir)
     # preprocess_walking(source_dir / "walking", raw_dir)
     modes = ["raw", "fooof", "std"]
-    for mode in modes[:1]:
+    for mode in modes[2:]:
         plot_dir = plot_root / mode
         plot_dir.mkdir(exist_ok=True)
-        # get_power_walking(raw_dir, plot_dir, mode=mode)
-        # get_power_rest(raw_dir, plot_dir, mode=mode)
+        save_power_walking(raw_dir, plot_dir, mode=mode)
+        save_power_rest(raw_dir, plot_dir, mode=mode)
 
         power, freqs = load_power(plot_dir, mode=mode)
 
         # PLOT STANDING VS WALKING
         plotting_settings.standingvswalking()
-        # lineplot_power(
-        #     plot_dir, power, freqs, conditions=["Standing", "Walking"]
-        # )
+        lineplot_power(
+            plot_dir, power, freqs, conditions=["Standing", "Walking"]
+        )
         boxplot_power(plot_dir, power, freqs)
 
         # PLOT REST VS WALKING
