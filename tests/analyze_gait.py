@@ -1,5 +1,6 @@
 """Test decoding gait from GPi LFP data."""
 import pathlib
+from typing import Literal
 
 import fooof
 import fooof.analysis
@@ -13,6 +14,14 @@ import scipy.io
 from matplotlib import figure
 from matplotlib import pyplot as plt
 from statannotations.stats.StatTest import StatTest
+
+F_BANDS = {
+    "α": [8, 12],
+    "Low β": [13, 20],
+    "High β": [21, 35],
+    "β": [13, 35],
+    "γ": [40, 90],
+}
 
 
 def add_squared_channel(
@@ -171,7 +180,7 @@ def preprocess_rest(in_dir: pathlib.Path, out_dir: pathlib.Path) -> None:
         )
 
 
-def fit_model_iterative(
+def fit_fooof_model_iterative(
     freqs: np.ndarray, power_spectrum: np.ndarray, fig, ax
 ) -> tuple[fooof.FOOOF, figure.Figure]:
     """Fit FOOOF model iteratively."""
@@ -257,31 +266,31 @@ def plot_psd(
     plt.show(block=True)
 
 
-def plot_fooof(
+def normalize_power(
     psds: dict[str, mne.time_frequency.EpochsSpectrum],
     bids_path: mne_bids.BIDSPath,
     out_dir: pathlib.Path,
+    mode: Literal["raw", "fooof", "std"] = "fooof",
 ) -> list:
     """"""
     fname = bids_path.fpath.stem
     sub = bids_path.subject  # type: ignore
-    fig, ax = plt.subplots(1, 1)
-    fig.show()
     peak_fits = []
     for descr, psd in psds.items():
         power, freqs = psd.get_data(picks="data", return_freqs=True)
         power = power.mean(axis=0)
-        for ch, power_spectrum in zip(psd.ch_names, power, strict=True):
-            fig.suptitle(ch)
-            model, fig = fit_model_iterative(
-                freqs, power_spectrum, fig=fig, ax=ax
-            )
-            basename = f"{fname}_{ch}_{descr}"
-            model.save_report(
-                file_name=f"{basename}_model.pdf",
-                file_path=str(out_dir),
-            )
-            peak_fits.append([sub, descr, ch, *model._peak_fit])  # type: ignore
+        for ch, power_raw in zip(psd.ch_names, power, strict=True):
+            if mode == "raw":
+                power_norm = power_raw
+            elif mode == "fooof":
+                basename = f"{fname}_{ch}_{descr}"
+                power_norm = get_fooof(out_dir, freqs, ch, power_raw, basename)
+            elif mode == "std":
+                raise NotImplementedError("Not implemented yet.")
+                # power_norm = get_std_norm(power_raw)
+            else:
+                raise ValueError(f"Unknown mode: {mode}")
+            peak_fits.append([sub, descr, ch, *power_norm])  # type: ignore
     power_final = pd.DataFrame(
         peak_fits,
         columns=[
@@ -292,38 +301,32 @@ def plot_fooof(
         ],
     )
     power_final.to_csv(
-        out_dir / f"fooof_walking_standing_sub-{sub}.csv", index=False
+        out_dir / f"{mode}_walking_standing_sub-{sub}.csv", index=False
+    )
+    return peak_fits
+
+
+def get_fooof(out_dir, freqs, ch, power_raw, basename) -> list[float]:
+    fig, ax = plt.subplots(1, 1)
+    fig.suptitle(ch)
+    fig.show()
+    fooof_model, fig = fit_fooof_model_iterative(
+        freqs, power_raw, fig=fig, ax=ax
     )
     plt.close()
-    return peak_fits
-    # fig.savefig(str(PLOT_DIR / (basename + ".png")))
-
-    # beta_peaks = fooof.analysis.get_band_peak_fm(
-    #     model,
-    #     band=(13.0, 35.0),
-    #     select_highest=False,
-    #     attribute="peak_params",
-    # )
-    # if beta_peaks.ndim == 1:
-    #     beta_peaks = np.expand_dims(beta_peaks, axis=0)
-    # results.extend(
-    #     (
-    #         [
-    #             sub,
-    #             med,
-    #             stim,
-    #             ch,
-    #             peak[0],
-    #             peak[1],
-    #             peak[2],
-    #         ]
-    #         for peak in beta_peaks
-    #     )
-    # )
+    fooof_model.save_report(
+        file_name=f"{basename}_model.pdf",
+        file_path=str(out_dir),
+    )
+    power_norm = list(*fooof_model._peak_fit)
+    return power_norm
 
 
-def get_power_walking(in_dir: pathlib.Path, out_dir: pathlib.Path) -> None:
-    sides = ("Left", "Right")
+def get_power_walking(
+    in_dir: pathlib.Path,
+    out_dir: pathlib.Path,
+    mode: Literal["raw", "fooof", "std"] = "fooof",
+) -> None:
     fmin = 3
     fmax = 90
     freqs = np.arange(fmin, fmax + 1, dtype=int)
@@ -357,7 +360,9 @@ def get_power_walking(in_dir: pathlib.Path, out_dir: pathlib.Path) -> None:
             psd = psd_from_raw(raws, raw.info, fmin=fmin, fmax=fmax)
             psds[descr] = psd
 
-        power_single = plot_fooof(psds, bids_path=bids_path, out_dir=out_dir)
+        power_single = normalize_power(
+            psds, bids_path=bids_path, out_dir=out_dir, mode=mode
+        )
 
     power_all = pd.DataFrame(
         power_single,
@@ -368,10 +373,14 @@ def get_power_walking(in_dir: pathlib.Path, out_dir: pathlib.Path) -> None:
             *(freq for freq in freqs),
         ],
     )
-    power_all.to_csv(out_dir / "fooof_walking_standing.csv", index=False)
+    power_all.to_csv(out_dir / f"{mode}_walking_standing.csv", index=False)
 
 
-def get_power_rest(in_dir: pathlib.Path, out_dir: pathlib.Path) -> None:
+def get_power_rest(
+    in_dir: pathlib.Path,
+    out_dir: pathlib.Path,
+    mode: Literal["raw", "fooof", "std"] = "fooof",
+) -> None:
     fmin = 3
     fmax = 90
     freqs = np.arange(fmin, fmax + 1, dtype=int)
@@ -398,23 +407,22 @@ def get_power_rest(in_dir: pathlib.Path, out_dir: pathlib.Path) -> None:
         )
         fname = bids_path.fpath.stem
         sub = bids_path.subject  # type: ignore
-        fig, ax = plt.subplots(1, 1)
-        fig.show()
         peak_fits = []
         descr = "Rest"
         power, freqs = psd.get_data(picks="data", return_freqs=True)
         power = power.mean(axis=0)
-        for ch, power_spectrum in zip(psd.ch_names, power, strict=True):
-            fig.suptitle(ch)
-            model, fig = fit_model_iterative(
-                freqs, power_spectrum, fig=fig, ax=ax
-            )
-            basename = f"{fname}_{ch}_{descr}"
-            model.save_report(
-                file_name=f"{basename}_model.pdf",
-                file_path=str(out_dir),
-            )
-            peak_fits.append([sub, descr, ch, *model._peak_fit])  # type: ignore
+        for ch, power_raw in zip(psd.ch_names, power, strict=True):
+            if mode == "raw":
+                power_norm = power_raw
+            elif mode == "fooof":
+                basename = f"{fname}_{ch}_{descr}"
+                power_norm = get_fooof(out_dir, freqs, ch, power_raw, basename)
+            elif mode == "std":
+                raise NotImplementedError("Not implemented yet.")
+                # power_norm = get_std_norm(power_raw)
+            else:
+                raise ValueError(f"Unknown mode: {mode}")
+            peak_fits.append([sub, descr, ch, *power_norm])  # type: ignore
         power_single = pd.DataFrame(
             peak_fits,
             columns=[
@@ -424,7 +432,9 @@ def get_power_rest(in_dir: pathlib.Path, out_dir: pathlib.Path) -> None:
                 *(freq for freq in freqs),
             ],
         )
-        power_single.to_csv(out_dir / f"fooof_rest_sub-{sub}.csv", index=False)
+        power_single.to_csv(
+            out_dir / f"{mode}_rest_sub-{sub}.csv", index=False
+        )
 
 
 def psd_from_raw(
@@ -457,8 +467,13 @@ def psd_from_raw(
 
 
 def lineplot_power(
-    plot_dir: pathlib.Path, power: dict[str, np.ndarray], freqs: np.ndarray
+    plot_dir: pathlib.Path,
+    power: dict[str, np.ndarray],
+    freqs: np.ndarray,
+    conditions: list[str] = ["Standing", "Walking"],
 ) -> None:
+    cond_a = conditions[0]
+    cond_b = conditions[1]
     fig, ax = plt.subplots(
         1,
         1,
@@ -467,11 +482,11 @@ def lineplot_power(
     )
     _, _ = plotting.lineplot_compare(
         ax=ax,
-        x_1=power["Standing"],
-        x_2=power["Walking"],
+        x_1=power[cond_a].to_numpy().T,
+        x_2=power[cond_b].to_numpy().T,
         times=freqs,
         y_lims=None,
-        data_labels=list(power.keys()),
+        data_labels=conditions,
         x_label="Frequency [Hz]",
         y_label="Periodic Power [AU]",
         alpha=0.05,
@@ -485,34 +500,56 @@ def lineplot_power(
         show=False,
     )
     plotting_settings.save_fig(
-        fig, plot_dir / "psd_walking_standing_lineplot.svg"
+        fig, plot_dir / f"psd_{cond_a.lower()}_{cond_b.lower()}_lineplot.svg"
     )
     plt.show(block=True)
 
 
 def load_power(
-    plot_dir,
+    plot_dir: pathlib.Path,
+    mode: Literal["raw", "fooof", "std"] = "fooof",
 ) -> tuple[dict[str, np.ndarray], np.ndarray]:
     powers = {"Standing": [], "Walking": []}
     freqs = np.arange(3, 91, dtype=int)
-    for file in plot_dir.rglob("fooof_walking_standing*.csv"):
-        data = pd.read_csv(file)
+    for file in plot_dir.rglob(f"{mode}_walking_standing_*.csv"):
+        power = pd.read_csv(file)
         for condition, values in powers.items():
-            data_cond = data.query(f"Condition == '{condition}'")
-            data_cond = data_cond.drop(
-                columns=["Subject", "Channel", "Condition"]
+            data_cond = power.query(f"Condition == '{condition}'")
+            data_cond = data_cond.set_index(["Subject", "Condition"]).drop(
+                columns=["Channel"]
             )
-            power = data_cond.to_numpy().mean(axis=0)
-            values.append(power)
-    for file in plot_dir.rglob("fooof_rest*.csv"):
-        data = pd.read_csv(file)
-        powers["Rest"] = values = []
-        data_cond = data.drop(columns=["Subject", "Channel", "Condition"])
-        power = data_cond.to_numpy().mean(axis=0)
+            power_ch_avg = data_cond.mean(axis=0)
+            power_ch_avg.name = data_cond.index[0]
+            # data_cond = data_cond.drop(
+            #     columns=["Subject", "Channel", "Condition"]
+            # )
+            # power = data_cond.to_numpy().mean(axis=0)
+            values.append(power_ch_avg)
+    powers["Rest"] = values = []
+    for file in plot_dir.rglob(f"{mode}_rest_*.csv"):
+        power = pd.read_csv(file)
+        data_cond = power.set_index(["Subject", "Condition"]).drop(
+            columns=["Channel"]
+        )
+        power = data_cond.mean(axis=0)
+        power.name = data_cond.index[0]
+        # data_cond = data.drop(columns=["Subject", "Channel", "Condition"])
+        # power = data_cond.to_numpy().mean(axis=0)
         values.append(power)
     results: dict[str, np.ndarray] = {}
+    avg_fbands = []
     for condition, values in powers.items():
-        results[condition] = np.stack(values).T
+        values_df = pd.concat(values, axis="columns").T
+        results[condition] = values_df
+        # results[condition] = np.stack(values).T
+        for row, power in values_df.iterrows():
+            for fband, flims in F_BANDS.items():
+                idx = (freqs > flims[0]) & (freqs < flims[1])
+                pow_single = power[idx].mean()
+                avg_fbands.append([*row, fband, pow_single])
+    pd.DataFrame(
+        avg_fbands, columns=["Subject", "Condition", "Band", "Power"]
+    ).to_csv(plot_dir / f"{mode}_all.csv", index=False)
     return results, freqs
 
 
@@ -546,16 +583,17 @@ def permutation_onesample() -> StatTest:
 
 
 def boxplot_power(
-    plot_dir: pathlib.Path, power: dict[str, np.ndarray], freqs: np.ndarray
+    plot_dir: pathlib.Path,
+    power: dict[str, np.ndarray],
+    freqs: np.ndarray,
+    conditions: list[str] = ["Standing", "Walking"],
 ) -> None:
-    f_bands = {
-        "α": [8, 12],
-        "Low β": [13, 20],
-        "High β": [21, 35],
-        "β": [13, 35],
-        "γ": [40, 90],
+    power = {
+        cond: pow.to_numpy().T
+        for cond, pow in power.items()
+        if cond in conditions
     }
-    for fband, flims in f_bands.items():
+    for fband, flims in F_BANDS.items():
         fband_str = f"{fband} [{flims[0]}-{flims[1]}Hz]"
         idx = (freqs > flims[0]) & (freqs < flims[1])
         y = "Periodic Power [AU]"
@@ -575,7 +613,7 @@ def boxplot_power(
             data=data,
             x="Condition",
             y=y,
-            order=["Standing", "Walking"],
+            order=conditions,
             stat_test=permutation_onesample(),
             add_lines="Subject",
             figsize=(1.6, 2.4),
@@ -583,8 +621,12 @@ def boxplot_power(
         )
         fig.axes[0].set_title(fband_str, y=1.15)
         fig.tight_layout()
+        cond_a = conditions[0]
+        cond_b = conditions[1]
         plotting_settings.save_fig(
-            fig, plot_dir / f"psd_walking_standing_{flims[0]}-{flims[1]}Hz.svg"
+            fig,
+            plot_dir
+            / f"psd_{cond_a.lower()}_{cond_b.lower()}_{flims[0]}-{flims[1]}Hz.svg",
         )
         plt.show(block=True)
 
@@ -592,18 +634,38 @@ def boxplot_power(
 if __name__ == "__main__":
     mne.viz.set_browser_backend("qt")
     plotting_settings.activate()
-    plotting_settings.stimoffvson()
     root = pathlib.Path(__file__).parents[1] / "data" / "gait_dystonia"
     source_dir = root / "sourcedata"
     raw_dir = root / "rawdata"
-    plot_dir = root / "plots"
-    plot_dir.mkdir(exist_ok=True)
-    # preprocess_rest(source_dir / "rest", raw_dir)
-    # get_power_rest(raw_dir, plot_dir)
-    power, freqs = load_power(plot_dir)
+    plot_root = root / "plots"
+    plot_root.mkdir(exist_ok=True)
 
+    # PREPROCESS DATA
+    # preprocess_rest(source_dir / "rest", raw_dir)
     # preprocess_walking(source_dir / "walking", raw_dir)
-    # get_power_walking(raw_dir, plot_dir)
-    # lineplot_power(plot_dir, power, freqs)
-    # boxplot_power(plot_dir, power, freqs)
-    ...
+    modes = ["raw", "fooof", "std"]
+    for mode in modes[:1]:
+        plot_dir = plot_root / mode
+        plot_dir.mkdir(exist_ok=True)
+        # get_power_walking(raw_dir, plot_dir, mode=mode)
+        # get_power_rest(raw_dir, plot_dir, mode=mode)
+
+        power, freqs = load_power(plot_dir, mode=mode)
+
+        # PLOT STANDING VS WALKING
+        plotting_settings.standingvswalking()
+        # lineplot_power(
+        #     plot_dir, power, freqs, conditions=["Standing", "Walking"]
+        # )
+        boxplot_power(plot_dir, power, freqs)
+
+        # PLOT REST VS WALKING
+        plotting_settings.restvswalking()
+        lineplot_power(plot_dir, power, freqs, conditions=["Rest", "Walking"])
+        boxplot_power(plot_dir, power, freqs, conditions=["Rest", "Walking"])
+
+        # PLOT REST VS STANDING
+        plotting_settings.restvsstanding()
+        lineplot_power(plot_dir, power, freqs, conditions=["Rest", "Standing"])
+        boxplot_power(plot_dir, power, freqs, conditions=["Rest", "Standing"])
+        ...

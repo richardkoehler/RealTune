@@ -28,9 +28,10 @@ PALETTE_WJN_2022 = np.array(
 
 
 class Color(Enum):
-    ECOG_MEDOFF = (55 / 255, 110 / 255, 180 / 255)  # blue - Med. OFF Stim. OFF
+    REST = (255 / 255, 153 / 255, 0 / 255)  # orange - Resting state
+    STANDING = (55 / 255, 110 / 255, 180 / 255)  # blue - Med. OFF Stim. OFF
     ECOG_MEDON = (113 / 255, 188 / 255, 173 / 255)  # green - Med. ON Stim. OFF
-    ECOG_STIMON = (223 / 255, 74 / 255, 74 / 255)  # red - Med. OFF Stim. ON
+    WALKING = (223 / 255, 74 / 255, 74 / 255)  # red - Med. OFF Stim. ON
     STN = (125 / 255, 125 / 255, 125 / 255)  # medium grey - STN
     PARIETAL = (
         150 / 255,
@@ -67,16 +68,32 @@ def activate() -> None:
     mpl.rcParams["lines.linewidth"] = 1
 
 
-def medoffvson(show: bool = False) -> None:
-    colors = [Color.ECOG_MEDOFF.value, Color.ECOG_MEDON.value]
+def standingvswalking(show: bool = False) -> None:
+    colors = [Color.STANDING.value, Color.WALKING.value]
     mpl.rcParams["axes.prop_cycle"] = cycler.cycler(color=colors)
     if show:
         sns.palplot(mpl.rcParams["axes.prop_cycle"].by_key()["color"])
         plt.show(block=True)
 
 
-def stimoffvson(show: bool = False) -> None:
-    colors = [Color.ECOG_MEDOFF.value, Color.ECOG_STIMON.value]
+def restvswalking(show: bool = False) -> None:
+    colors = [Color.REST.value, Color.WALKING.value]
+    mpl.rcParams["axes.prop_cycle"] = cycler.cycler(color=colors)
+    if show:
+        sns.palplot(mpl.rcParams["axes.prop_cycle"].by_key()["color"])
+        plt.show(block=True)
+
+
+def restvsstanding(show: bool = False) -> None:
+    colors = [Color.REST.value, Color.STANDING.value]
+    mpl.rcParams["axes.prop_cycle"] = cycler.cycler(color=colors)
+    if show:
+        sns.palplot(mpl.rcParams["axes.prop_cycle"].by_key()["color"])
+        plt.show(block=True)
+
+
+def medoffvson(show: bool = False) -> None:
+    colors = [Color.STANDING.value, Color.ECOG_MEDON.value]
     mpl.rcParams["axes.prop_cycle"] = cycler.cycler(color=colors)
     if show:
         sns.palplot(mpl.rcParams["axes.prop_cycle"].by_key()["color"])
